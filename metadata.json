@@ -1,0 +1,7 @@
+{
+  "name": "Remix: LeadForce - Google Maps Lead Extractor",
+  "description": "Sistema inteligente de extração de leads do Google Maps para serviços domésticos em todo o Brasil, com inteligência artificial e Maps Grounding.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
