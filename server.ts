@@ -1,14 +1,21 @@
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
+import fs from 'fs';
 import cors from 'cors';
 import Database from 'better-sqlite3';
 import cron from 'node-cron';
 import { GoogleGenAI } from "@google/genai";
-import { BRAZIL_CITIES } from './src/types';
-import { AGENT_PROMPT_TEMPLATE } from './src/constants';
+import { BRAZIL_CITIES } from './src/types.ts';
+import { AGENT_PROMPT_TEMPLATE } from './src/constants.ts';
 
-const db = new Database('leadforce.db');
+// Ensure data directory exists for Railway Volumes
+const dataDir = path.join(process.cwd(), 'data');
+if (!fs.existsSync(dataDir)) {
+  fs.mkdirSync(dataDir, { recursive: true });
+}
+
+const db = new Database(path.join(dataDir, 'leadforce.db'));
 
 // Initialize Database
 db.exec(`
