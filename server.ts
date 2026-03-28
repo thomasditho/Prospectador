@@ -72,12 +72,15 @@ db.exec(`
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
 
   app.use(cors());
   app.use(express.json());
 
-  // API Routes
+  // Health check for Railway
+  app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString(), port: PORT });
+  });
   app.get('/api/settings', (req, res) => {
     const settings = db.prepare("SELECT * FROM settings WHERE id = 'default'").get();
     res.json(settings);
@@ -294,14 +297,28 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
+    if (fs.existsSync(distPath)) {
+      console.log(`📦 Servindo arquivos estáticos de: ${distPath}`);
+      app.use(express.static(distPath));
+      app.get('*', (req, res) => {
+        const indexPath = path.join(distPath, 'index.html');
+        if (fs.existsSync(indexPath)) {
+          res.sendFile(indexPath);
+        } else {
+          res.status(404).send('Erro: index.html não encontrado na pasta dist. O build foi executado corretamente?');
+        }
+      });
+    } else {
+      console.error(`❌ Erro: Pasta 'dist' não encontrada em ${distPath}. Certifique-se de que 'npm run build' foi executado.`);
+      app.get('*', (req, res) => {
+        res.status(500).send('Erro interno: Pasta dist não encontrada. O build falhou ou não foi executado.');
+      });
+    }
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`🚀 Servidor rodando em http://0.0.0.0:${PORT}`);
+    console.log(`🌍 Ambiente: ${process.env.NODE_ENV || 'development'}`);
   });
 }
 
