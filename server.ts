@@ -72,7 +72,7 @@ async function startServer() {
 
   // API Routes
   app.get('/api/settings', (req, res) => {
-    const settings = db.prepare('SELECT * FROM settings WHERE id = "default"').get();
+    const settings = db.prepare("SELECT * FROM settings WHERE id = 'default'").get();
     res.json(settings);
   });
 
@@ -81,7 +81,7 @@ async function startServer() {
     db.prepare(`
       UPDATE settings 
       SET startTime = ?, frequency = ?, batchSize = ?, dailyGoal = ?, geminiApiKey = ?
-      WHERE id = "default"
+      WHERE id = 'default'
     `).run(startTime, frequency, batchSize, dailyGoal, geminiApiKey);
     
     // Reschedule cron job
@@ -163,6 +163,17 @@ async function startServer() {
   // Agent Logic (Backend Version)
   const runExtraction = async (campaignId?: string) => {
     console.log('🤖 Agente iniciado...');
+    const settings: any = db.prepare("SELECT * FROM settings WHERE id = 'default'").get();
+    
+    // Check daily goal
+    const today = new Date().toISOString().split('T')[0];
+    const leadsTodayCount: any = db.prepare('SELECT COUNT(*) as count FROM leads WHERE extractedAt LIKE ?').get(`${today}%`);
+    
+    if (leadsTodayCount.count >= settings.dailyGoal) {
+      console.log('⚠️ Meta diária atingida. Abortando extração automática.');
+      return;
+    }
+
     const activeCampaigns = campaignId 
       ? db.prepare('SELECT * FROM campaigns WHERE id = ?').all(campaignId)
       : db.prepare('SELECT * FROM campaigns WHERE status = "active"').all();
@@ -180,7 +191,7 @@ async function startServer() {
     for (const campaign of activeCampaigns as any[]) {
       try {
         const city = BRAZIL_CITIES[campaign.currentCityIndex % BRAZIL_CITIES.length];
-        const batchSize = 5;
+        const batchSize = settings.batchSize || 5;
         const prompt = AGENT_PROMPT_TEMPLATE(campaign.professionalType, city, batchSize);
 
         const response = await ai.models.generateContent({
@@ -238,16 +249,33 @@ async function startServer() {
     }
   };
 
+  let currentCronTask: any = null;
+
+  const setupCronJob = () => {
+    const settings: any = db.prepare("SELECT * FROM settings WHERE id = 'default'").get();
+    if (currentCronTask) currentCronTask.stop();
+
+    let cronExpression = '0 * * * *'; // Default 1h
+
+    if (settings.frequency === '6h') cronExpression = '0 */6 * * *';
+    else if (settings.frequency === 'daily') {
+      const [hour, minute] = settings.startTime.split(':');
+      cronExpression = `${minute} ${hour} * * *`;
+    }
+
+    console.log(`⏰ Agendando robô: ${cronExpression} (Frequência: ${settings.frequency})`);
+    currentCronTask = cron.schedule(cronExpression, () => {
+      console.log('🚀 Executando extração agendada...');
+      runExtraction();
+    });
+  };
+
+  setupCronJob();
+
   app.post('/api/agent/run', async (req, res) => {
     const { campaignId } = req.body;
     runExtraction(campaignId); // Run in background
     res.json({ success: true, message: 'Agente iniciado em segundo plano.' });
-  });
-
-  // CRON JOB: Runs every hour
-  cron.schedule('0 * * * *', () => {
-    console.log('⏰ Executando extração agendada...');
-    runExtraction();
   });
 
   // Vite middleware for development

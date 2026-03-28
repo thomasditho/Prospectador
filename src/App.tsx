@@ -31,7 +31,9 @@ import {
   TrendingUp,
   FileJson,
   FileSpreadsheet,
-  Share2
+  Share2,
+  Key,
+  ShieldAlert
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI, Type, Modality } from "@google/genai";
